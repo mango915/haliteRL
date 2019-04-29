@@ -296,7 +296,7 @@ class MapGenerator:
 
         # halite on ships layer (nothing to change)
         mapp[:, :, 2] = 0
-!!!!!!!!!!!!!!!!!!! 3->1, 1->2, 2->3
+#!!!!!!!!!!!!!!!!!!! 3->1, 1->2, 2->3
         # shipyard, dropoff location (+1 shipyards, -1 dropoffs)
         self.initialize_shipyard_location(map_size, num_players, mapp)
         # remove halite under shipyard starting position
