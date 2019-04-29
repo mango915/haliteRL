@@ -65,6 +65,7 @@ class HaliteEnv(gym.Env):
         self.info = None
         self.nlayers = 5
         self.turn = 0
+        self.endturn = 400
         if not self.regen_map:
             self.original_map = self.map.copy()
 
