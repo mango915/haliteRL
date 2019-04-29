@@ -63,7 +63,7 @@ class HaliteEnv(gym.Env):
         self.metadata["map_size"] = map_size
         self.metadata["num_players"] = num_players
         self.info = None
-        self.nlayers = 7
+        self.nlayers = 5
         if not self.regen_map:
             self.original_map = self.map.copy()
 
@@ -91,16 +91,21 @@ class HaliteEnv(gym.Env):
         state = rolled_sa[:, :, :-1]
         action = rolled_sa[:, :, -1:]
 
-        mask_shipyard = state[:, 0, 2] == 1
-        if makeship and self.player_halite[0] >= 1000: #! multyplayer TODO
-            self.player_halite[0] -= 1000
-            if state[mask_shipyard,0,3] == 1:
-                 x = 0
-            else:
-                state[mask_shipyard,0,3] = 1
-
         # check final number of ships for every cell
         S = (directions[np.newaxis, ...] == action).sum(axis=1)
+
+        mask_shipyard = state[:, 0, 2] == 1
+        if makeship and self.player_halite[0] >= 1000: #! multyplayer TODO
+
+            if state[mask_shipyard,0,3] == 1:
+                x = 0
+            else:
+                self.player_halite[0] -= 1000
+                state[mask_shipyard,0,3] = 1
+                S[mask_shipyard, 0] = 1
+                action[mask_shipyard,0,0] = 0
+
+
 
         # ACTION FIVE
         # check not a shipyard
@@ -142,7 +147,7 @@ class HaliteEnv(gym.Env):
         # stay still move
         mask_stay = np.all((action[:, 0, 0] == 0, mask_action), axis=0)
         # calculate 25% of cell's halite
-        potential_gain = np.round(state[:, 0, 0] * 0.25)
+        potential_gain = np.round(state[:, 0, 0] * 0.25).astype('int64')
         # check actual cargos
         potential_cargos = state[:, 0, 1]
         # check fullness
@@ -168,8 +173,8 @@ class HaliteEnv(gym.Env):
         # cargo arrive
         mask_dropoff = state[:, 0, 2] == -1
         state[mask_action, 0, 1] = state[:, :, 1][mask_action][mask_coming_ships]
-        self.player_halite[0] += state[mask_shipyard or mask_dropoff, 0, 1].sum()
-        state[mask_shipyard or mask_dropoff, 0, 1] = 0
+        self.player_halite[0] += state[np.any((mask_shipyard,mask_dropoff), axis = 0), 0, 1].sum()
+        state[np.any((mask_shipyard,mask_dropoff), axis = 0), 0, 1] = 0
 
         # VOID (S==0)
         # check no ships in cell
@@ -306,7 +311,7 @@ class MapGenerator:
     def initialize_shipyard_location(self, map_size, num_players, mapp):
         if num_players == 1:
             x = y = map_size // 2
-            mapp[x, y, [2, 4]] = 1
+            mapp[x, y, 2] = 1
         elif num_players == 2:
             x1 = map_size // 4
             x2 = map_size - (map_size // 4)
