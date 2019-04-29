@@ -64,6 +64,7 @@ class HaliteEnv(gym.Env):
         self.metadata["num_players"] = num_players
         self.info = None
         self.nlayers = 5
+        self.turn = 0
         if not self.regen_map:
             self.original_map = self.map.copy()
 
@@ -233,7 +234,11 @@ class HaliteEnv(gym.Env):
             print(state[:, :, 5], "\n")
             return state, self.mapp, action
         self.map = state
-        return state
+        self.turn += 1
+        if self.turn == self.endturn:
+            return state, self.player_halite, True, None
+        else:
+            return state, self.player_halite, False, None
 
     def reset(self):
         """
@@ -286,7 +291,7 @@ class MapGenerator:
         mapp = np.tile(layer[:, :, np.newaxis], 4)  # 6)
 
         # halite layer
-        mapp[:, :, 0] = np.random.randint(1e4, size=shape)
+        mapp[:, :, 0] = np.random.randint(1e3, size=shape)
 
         # halite on ships layer (nothing to change)
         mapp[:, :, 1] = 0
