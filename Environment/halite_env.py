@@ -37,7 +37,7 @@ class HaliteEnv(gym.Env):
 
     metadata = {"render_modes": ["human"], "map_size": 0, "num_players": 0}
 
-    def __init__(self, num_players, map_type, map_size, regen_map_on_reset=False):
+    def __init__(self, num_players, map_size, regen_map_on_reset=False, map_type=None):
         """
         Every environment should be derived from gym.Env and at least contain the
         variables observation_space and action_space specifying the type of possible
@@ -67,7 +67,7 @@ class HaliteEnv(gym.Env):
         if not self.regen_map:
             self.original_map = self.map.copy()
 
-    def step(self, action, debug=False):
+    def step(self, action, makeship = False, debug=False):
         """
         Primary interface between environment and agent.
 
@@ -91,6 +91,14 @@ class HaliteEnv(gym.Env):
         state = rolled_sa[:, :, :-1]
         action = rolled_sa[:, :, -1:]
 
+        mask_shipyard = state[:, 0, 2] == 1
+        if makeship and self.player_halite[0] >= 1000: #! multyplayer TODO
+            self.player_halite[0] -= 1000
+            if state[mask_shipyard,0,3] == 1:
+                 x = 0
+            else:
+                state[mask_shipyard,0,3] = 1
+
         # check final number of ships for every cell
         S = (directions[np.newaxis, ...] == action).sum(axis=1)
 
@@ -101,6 +109,7 @@ class HaliteEnv(gym.Env):
         mask_action_five = action[:, 0, 0] == 5
 
         # TODO: STATE[:,0,0] add to player's halite
+        #self.player_halite[0] +=
         # check two previous checks together
         mask_five_not_shipy = np.all((mask_not_shipy, mask_action_five), axis=0)
         # remove cell's halite
@@ -157,7 +166,10 @@ class HaliteEnv(gym.Env):
         # ship arrive
         state[mask_action, 0, 3] = 1
         # cargo arrive
+        mask_dropoff = state[:, 0, 2] == -1
         state[mask_action, 0, 1] = state[:, :, 1][mask_action][mask_coming_ships]
+        self.player_halite[0] += state[mask_shipyard or mask_dropoff, 0, 1].sum()
+        state[mask_shipyard or mask_dropoff, 0, 1] = 0
 
         # VOID (S==0)
         # check no ships in cell
@@ -266,7 +278,7 @@ class MapGenerator:
 
         shape = (map_size, map_size)
         layer = np.zeros(shape, dtype=np.int64)
-        mapp = np.tile(layer[:, :, np.newaxis], 6)  # 6)
+        mapp = np.tile(layer[:, :, np.newaxis], 4)  # 6)
 
         # halite layer
         mapp[:, :, 0] = np.random.randint(1e4, size=shape)
