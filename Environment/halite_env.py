@@ -37,7 +37,7 @@ class HaliteEnv(gym.Env):
 
     metadata = {"render_modes": ["human"], "map_size": 0, "num_players": 0}
 
-    def __init__(self, num_players, map_size, episode_lenght, regen_map_on_reset=False, map_type=None):
+    def __init__(self, num_players, map_size, episode_lenght = 400, regen_map_on_reset=False, map_type=None):
         """
         Every environment should be derived from gym.Env and at least contain the
         variables observation_space and action_space specifying the type of possible
@@ -65,7 +65,7 @@ class HaliteEnv(gym.Env):
         self.info = None
         self.nlayers = 5
         self.turn = 0
-        self.endturn = 400
+        self.endturn = episode_lenght
         if not self.regen_map:
             self.original_map = self.map.copy()
 
@@ -174,7 +174,7 @@ class HaliteEnv(gym.Env):
         state[mask_action, 0, 1] = 1
         # cargo arrive
         mask_dropoff = state[:, 0, 3] == -1
-        state[mask_action, 0, 1] = state[:, :, 2][mask_action][mask_coming_ships]
+        state[mask_action, 0, 2] = state[:, :, 2][mask_action][mask_coming_ships]
         self.player_halite[0] += state[np.any((mask_shipyard,mask_dropoff), axis = 0), 0, 2].sum()
         state[np.any((mask_shipyard,mask_dropoff), axis = 0), 0, 2] = 0
 
