@@ -50,7 +50,7 @@ class HaliteEnv(gym.Env):
 
         HaliteEnv initialization function.
         """
-        print("Initializing Halite Environment")
+        #print("Initializing Halite Environment")
         self.map_generator = MapGenerator()
         self.map = self.map_generator.generate_map(map_size, num_players)
         # numPlayers = int(numPlayers)
