@@ -93,6 +93,23 @@ def get_halite_direction(state, map_size = 7):
     
     return halite_direction
 
+# 2D encoding and decoding for arbitrary lengths of the two axis
+
+def encode2D(v_dec, L1, L2):
+    # v_dec = [v1,v2]
+    # returns the encoded version V[v1,v2] of V = np.arange(0,L1*L2)
+    V = np.arange(0,L1*L2).reshape((L1,L2))
+    v_enc = V[tuple(v_dec)] 
+    return v_enc
+
+def decode2D(v_enc, L1, L2):
+    # v_enc = V[v1,v2] 
+    # V = np.arange(0,L1*L2)
+    # returns the decoded version v_dec = [v1,v2] of V[v1,v2] 
+    V = np.arange(0,L1*L2).reshape((L1,L2))
+    v_dec = np.array([np.where(v_enc == V)[0][0],np.where(v_enc == V)[1][0]])
+    return v_dec
+
 # 3D encoding and decoding for arbitrary lengths of the three axis
 
 def encode3D(v_dec, L1, L2, L3):
@@ -196,3 +213,111 @@ def sym_action(a):
         a8.append(A[m][0])
     
     return a8
+
+# multi-agent changes
+
+def multi_scalar_to_matrix_action(actions, state, map_size = 7):
+    # first get the decoded position of the ship
+    ship_pos_matrix = state[:,:,1]
+    ships_pos_enc = one_to_index(ship_pos_matrix, map_size)
+    # then fill a matrix of -1
+    mat_action = np.full((map_size,map_size), -1)
+    for i in range(len(ships_pos_enc)):
+        pos_dec = decode(ships_pos_enc[i], map_size)
+        #print("pos_dec: ", pos_dec)
+        # finally insert the action in the pos_dec entry
+        mat_action[tuple(pos_dec)] = actions[i]
+        
+    return mat_action
+
+def safest_dir(pos_enc, state, map_size = 7):
+    # pos_enc is of a single ship
+    
+    ship_pos_matrix = state[:,:,1]
+    shipy_enc = one_to_index(state[:,:,3], map_size) 
+    shipy_dec = decode(shipy_enc, map_size)
+    pos_dec = decode(pos_enc, map_size)
+    shift = (shipy_dec[0]-pos_dec[0],shipy_dec[1]-pos_dec[1])
+    centered = np.roll(ship_pos_matrix , shift = shift, axis = (0,1)) #centers map_halite on the ship
+    
+    s1 = shipy_dec + [0,1]
+    s2 = shipy_dec + [0,-1]
+    s3 = shipy_dec + [1,0]
+    s4 = shipy_dec + [-1,0]
+    s = [s1,s2,s3,s4]
+    
+    mask = np.zeros((map_size,map_size)).astype(int)
+    for x in s:
+        mask[tuple(x)] = 1
+
+    mask = mask.astype(bool)
+    near_ships = centered[mask] # N,W,E,S -> 2,4,3,1
+    x = np.array([2,4,3,1])
+    if near_ships.sum() < 4:
+        safe_dirs = x[~near_ships.astype(bool)] # safe directions
+        safest_dir = np.random.choice(safe_dirs)
+    else:
+        safest_dir = 0
+        
+    return safest_dir
+
+def encode_multi_state(state, map_size = 7, h_lev = 3, n_actions = 5, debug = False):
+    import copy
+    # returns a list containing the encoded state of each ship
+    ship_ids = state[:,:,4][state[:,:,1].astype(bool)]
+    enc_states = []
+    for i in range(len(ship_ids)):
+        ID = ship_ids[i] # select one ID in order of position in the map
+        mask = (state[:,:,4] == ID) # select only the position of the ship with this ID
+        one_state = copy.deepcopy(state) # work with a deep copy to make changes only on that
+        one_state[:,:,1][~mask] = 0 # map it to a one-ship state
+        pos_enc = one_to_index(one_state[:,:,1], map_size)
+        safe_dir = safest_dir(pos_enc, state, map_size = 7) # new information to encode in the multi-agent case
+        # recycle the function used to encode the one-ship case by masking the other ships
+        s1_enc = encode_state(one_state, map_size = map_size, h_lev = h_lev, n_actions = n_actions, debug = debug)
+        n_states1 = map_size**2*h_lev**6*4 # number of possible states along s1_enc
+        n_states2 = n_actions
+        s_enc = encode2D(np.array([s1_enc, safe_dir]), L1 = n_states1, L2 = n_states2)
+        enc_states.append(s_enc)
+    return enc_states
+
+
+# 4D encoding and decoding for arbitrary lengths of the four axis
+
+def encode4D(v_dec, L1, L2, L3, L4):
+    V = np.arange(0,L1*L2*L3*L4).reshape((L1,L2,L3,L4))
+    v_enc = V[tuple(v_dec)] 
+    return v_enc
+
+def decode4D(v_enc, L1, L2, L3,L4):
+    V = np.arange(0,L1*L2*L3*L4).reshape((L1,L2,L3,L4))
+    v_dec = np.array([np.where(v_enc == V)[0][0],np.where(v_enc == V)[1][0], np.where(v_enc == V)[2][0], np.where(v_enc == V)[3][0]])
+    return v_dec
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+    
