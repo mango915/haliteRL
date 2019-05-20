@@ -1,4 +1,4 @@
-import numpy as np
+mport numpy as np
 import gym
 
 
@@ -99,10 +99,10 @@ class HaliteEnv(gym.Env):
         mask_shipyard = state[:, 0, 3] == 1
         if makeship and self.player_halite[0] >= 1000: #! multyplayer TODO
             # TODO check if it work
-            self.player_halite[0] -= 1000
             if S[mask_shipyard, 0][0] > 0:
                 S[mask_shipyard, 0] += 1
             else:
+                self.player_halite[0] -= 1000
                 state[mask_shipyard,0,1] = 1
                 S[mask_shipyard, 0] = 1
                 action[mask_shipyard,0,0] = 0
