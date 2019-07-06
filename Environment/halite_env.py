@@ -18,9 +18,9 @@ class HaliteEnv(gym.Env):
         Map of game as a 3D array. Stores different information on each "layer"
         of the array.
     Layer 0: The Halite currently on the sea floor
-    Layer 1: The Halite currently on ships/factory/dropoff
-    Layer 2: Whether a Factory or Dropoff exists at the layer (Factory is 1, Dropoff is -1)
-    Layer 3: Whether a Ship exists at the layer
+    Layer 1: Whether a Ship exists at the layer
+    Layer 2: The Halite currently on ships/factory/dropoff
+    Layer 3: Whether a Factory or Dropoff exists at the layer (Factory is 1, Dropoff is -1)
     Layer 4: Ownership
     Layer 5: Inspiration (not given as part of observation by default)
 
@@ -475,12 +475,17 @@ class SingleShipEnv(gym.Env):
         rew -= 0.01
         rew += (cargo - self.cargo) / 5000
         self.cargo = cargo
+        if int(self.cargo) == 1000:
+            rew -= 0.2
         self.reward = reward
         return rew[0]
 
     def seed(self, seed):
         random.seed(seed)
         self.HEnv.seed(seed)
+        
+    def render(self, mode="human", close=False):
+        self.HEnv.render(mode, close)
 
     def reset(self):
         self.HEnv.reset()
@@ -488,3 +493,6 @@ class SingleShipEnv(gym.Env):
         state, rew, done, info = self.HEnv.step(action, makeship=True)
         self.state = state
         return self.state
+
+    def pl_halite(self):
+        return self.HEnv.player_halite[0]
