@@ -2,9 +2,9 @@ import numpy as np
 import encode as cod
 
 def shipy_policy(weights, state, h_tot, steps, epsilon, tot_turns = 400, map_size = 7):
-    r = predict_reward(weights, state, h_tot, steps, tot_turns = 400, map_size = 7)
-    ship_on_shipyard = state[:,:,1][state[:,:,3].astype(bool)].astype(bool)
-    if (h_tot < 1000) or ship_on_shipyard:
+    r, near_ships = predict_reward(weights, state, h_tot, steps, tot_turns = 400, map_size = 7)
+    #ship_on_shipyard = state[:,:,1][state[:,:,3].astype(bool)].astype(bool)
+    if (h_tot < 1000) or (near_ships > 0):#ship_on_shipyard:
         return False
     else:
         u = np.random.rand()
@@ -19,7 +19,7 @@ def shipy_policy(weights, state, h_tot, steps, epsilon, tot_turns = 400, map_siz
 def predict_reward(weights, state, h_tot, steps, tot_turns = 400, map_size = 7):
     shipy_state = get_shipy_state(state, h_tot, steps, tot_turns = tot_turns, map_size = map_size)
     reward = poly_predict(weights, shipy_state)
-    return reward
+    return reward, shipy_state[-1]
 
 def get_shipy_state(state, h_tot, steps, tot_turns = 400, map_size = 7):
     # h_tot is the halite available
