@@ -6,4 +6,4 @@ Achievements:
 
 - implemented the halite environment engine in python, compatible with the openAI gym standard;
 - partially solved the resource collection task for a single ship and a single player with tabular methods; 
-- implemented the multi-agent framework.
+- implemented the multi-agent framework for tabular methods.
