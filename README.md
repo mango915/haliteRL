@@ -4,5 +4,6 @@ Introduction and initial committment: Reinforcement_learning_for_halite.pdf
 
 Achievements: 
 
+- implemented the halite environment engine in python, compatible with the openAI gym standard;
 - partially solved the resource collection task for a single ship and a single player with tabular methods; 
 - implemented the multi-agent framework.
