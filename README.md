@@ -5,5 +5,4 @@ Introduction and initial committment: Reinforcement_learning_for_halite.pdf
 Achievements: 
 
 - partially solved the resource collection task for a single ship and a single player with tabular methods; 
-
 - implemented the multi-agent framework.
