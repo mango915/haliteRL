@@ -10,6 +10,34 @@ Introduction and initial committment: Reinforcement_learning_for_halite.pdf
 - partially solved the resource collection task for a single ship and a single player with tabular methods; 
 - implemented the multi-agent framework for tabular methods.
 
+# Run project in a conda virtual environment
+
+> conda create -n \<env_name> python=3.7.4
+
+Now choose the folder in which you want to clone the github repository
+
+> git clone https://github.com/nicoladainese96/haliteRL.git
+>
+> cd haliteRL
+>
+> conda activate \<env_name>
+>
+> pip install -r requirements.txt
+>
+> python
+>
+> \>\>\> import sys; sys.executable
+
+Copy the path \<path> without quotes (e.g. /home/nicola/anaconda3/envs/test-env/bin/python)
+
+> \>\>\>  quit()
+
+>sudo \<path> -m ipykernel install --name \<env_name>
+>
+>jupyter notebook
+
+Open the notebooks that you want to inspect and select \<env_name> kernel.
+
 # Run project with Docker
 
 > docker run --rm -it -p 8888:8888 nicoladainese96/halite_rl:v0.0 bash
