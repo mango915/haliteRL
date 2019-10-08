@@ -63,9 +63,10 @@ class HaliteEnv(gym.Env):
         self.metadata["map_size"] = map_size
         self.metadata["num_players"] = num_players
         self.info = None
-        self.nlayers = 5
+        self.nlayers = 6
         self.turn = 0
         self.endturn = episode_lenght
+        self.id = 1 # starting shipd id
         if not self.regen_map:
             self.original_map = self.map.copy()
 
@@ -98,12 +99,14 @@ class HaliteEnv(gym.Env):
 
         mask_shipyard = state[:, 0, 3] == 1
         if makeship and self.player_halite[0] >= 1000: #! multyplayer TODO
-
-            if state[mask_shipyard,0,1] == 1:
-                x = 0
+            # TODO check if it work
+            self.player_halite[0] -= 1000
+            if S[mask_shipyard, 0][0] > 0:
+                S[mask_shipyard, 0] += 1
             else:
-                self.player_halite[0] -= 1000
                 state[mask_shipyard,0,1] = 1
+                state[mask_shipyard,0,-1] = self.id
+                self.id += 1
                 S[mask_shipyard, 0] = 1
                 action[mask_shipyard,0,0] = 0
 
@@ -142,6 +145,7 @@ class HaliteEnv(gym.Env):
         state[mask_collision, 0, 2] = 0
         # remove ships
         state[mask_collision, 0, 1] = 0
+        state[mask_collision, 0, -1] = 0
 
         # ACTION (S==1)
         # check non interacting moves
@@ -172,6 +176,7 @@ class HaliteEnv(gym.Env):
         ]
         # ship arrive
         state[mask_action, 0, 1] = 1
+        state[mask_action, 0, -1] = state[:,:,-1][mask_action][mask_coming_ships]
         # cargo arrive
         mask_dropoff = state[:, 0, 3] == -1
         state[mask_action, 0, 2] = state[:, :, 2][mask_action][mask_coming_ships]
@@ -183,6 +188,7 @@ class HaliteEnv(gym.Env):
         mask_void = (S == 0)[:, 0]
         # remove previous ships
         state[mask_void, 0, 1] = 0
+        state[mask_void, 0, -1] = 0
         # remove prvious cargos
         state[mask_void, 0, 2] = 0
 
@@ -289,7 +295,7 @@ class MapGenerator:
 
         shape = (map_size, map_size)
         layer = np.zeros(shape, dtype=np.int64)
-        mapp = np.tile(layer[:, :, np.newaxis], 4)  # 6)
+        mapp = np.tile(layer[:, :, np.newaxis], 5)  # 6)
 
         # halite layer
         mapp[:, :, 0] = np.random.randint(1e3, size=shape)
@@ -305,12 +311,16 @@ class MapGenerator:
         # ships locations (nothing to change)
         mapp[:, :, 1] = 0
 
-        # nothing for now
+        # ship id
+        mapp[:, :, 4] = 0
+
+
         # ship and buildings ownership (nothing to change)
-        # mapp[:, :, 4]
+        # mapp[:, :, 5]
+        # nothing for now
 
         # ispiration (nothing to change)
-        # mapp[:, :, 5]
+        # mapp[:, :, 6]
 
         return mapp
 
