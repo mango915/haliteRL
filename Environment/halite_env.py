@@ -6,7 +6,6 @@ class HaliteEnv(gym.Env):
     """
     Stores the Halite III OpenAI gym environment.
 
-    [Original, to change]
     This environment does not use Halite III's actual game engine
     (which analyzes input from terminal and is slow for RL) but instead is
     a replica in Python.
@@ -15,13 +14,12 @@ class HaliteEnv(gym.Env):
     -----------
     self.map : np.ndarray
         Map of game as a 3D array. Stores different information on each "layer"
-        of the array.
+        of the array. The layers are stacked on the third dimension.
     Layer 0: The Halite currently on the sea floor
     Layer 1: The Halite currently on ships/factory/dropoff
     Layer 2: Whether a Factory or Dropoff exists at the layer (Factory is 1, Dropoff is -1)
     Layer 3: Whether a Ship exists at the layer
-    Layer 4: Ownership
-    Layer 5: Inspiration (not given as part of observation by default)
+    Layer 4: Player ownership
 
     self.mapSize : int
         Size of map (for x and y)
@@ -30,14 +28,12 @@ class HaliteEnv(gym.Env):
         Number of players
 
     self.playerHalite : np.ndarray
-        Stores the total halite a player with ownership id <index + 1> has. self.map also
-        stores the total halite with the halite under factories/dropoffs, but doesn't
-        include the 5000 initial.
+        Array that contain the players' halite
     """
 
     metadata = {"render_modes": ["human"], "map_size": 0, "num_players": 0}
 
-    def __init__(self, num_players, map_size, episode_lenght = 400, regen_map_on_reset=False, map_type=None):
+    def __init__(self, num_players, map_size, episode_lenght=400, regen_map_on_reset=False, map_type=None, verbose=0):
         """
         Every environment should be derived from gym.Env and at least contain the
         variables observation_space and action_space specifying the type of possible
@@ -50,23 +46,33 @@ class HaliteEnv(gym.Env):
 
         HaliteEnv initialization function.
         """
-        #print("Initializing Halite Environment")
+
+        if verbose == 1:
+            print("Initializing Halite Environment")
+
+        # Core variables initialization
         self.map_generator = MapGenerator()
         self.map = self.map_generator.generate_map(map_size, num_players)
-        # numPlayers = int(numPlayers)
         self.player_halite = np.empty((num_players, 1))
         self.player_halite.fill(5000)
         self.num_players = num_players
         self.map_size = map_size
         self.n_cells = map_size ** 2
+
+        # Settings inizialization
         self.regen_map = regen_map_on_reset
         self.metadata["map_size"] = map_size
         self.metadata["num_players"] = num_players
-        self.info = None
         self.nlayers = 6
+        self.info = None
+
+        # Time variables
         self.turn = 0
         self.endturn = episode_lenght
+
+        # For later usage
         self.id = 1 # starting shipd id
+
         if not self.regen_map:
             self.original_map = self.map.copy()
 
@@ -75,16 +81,23 @@ class HaliteEnv(gym.Env):
         Primary interface between environment and agent.
 
         Paramters:
-            action: int
-                    the index of the respective action (if action space is discrete)
+            action: [self.map_size x self.map_size] numpy array there the position correspond to the position in the map
+                Every position can assume one of the following value: [-1, 0,1,2,3,4,5]: [no ship, stay, S, N, E, W, create dropoff]
 
         Returns:
-            output: (array, float, bool)
-                    information provided by the environment about its current state:
-                    (observation, reward, done)
+            output: (observation, reward: player_halite, done, info)
 
+
+        Here start the update of the map of the game.
+        The implementation was thought for exploit the superior efficency of numpy with vectorial operation.
+        No for loops are used and everything is done just with vectorial operations.
+
+        function that flat the 2-d matrix in 1-d vector (first axis) and concatenate to a cell the near cells (second axis).
+        This mean that the second axis is 5-dimensional, in the first dimension there is the cell itself, along the other four 
+        there are the cells on his left, right, up and down. This can be done because for infere the new state of a particular 
+        cell you need information only about the nearest neighbours cells.
+        along the thrid and last axis of the flattened array there are the different layers
         """
-        # action = he.dummy_action(mapp, 10)
         rolled_sa = roll_state(self.map, action)
 
         directions = np.array([0, 1, 2, 3, 4]).reshape(-1, 1)
@@ -99,7 +112,6 @@ class HaliteEnv(gym.Env):
 
         mask_shipyard = state[:, 0, 3] == 1
         if makeship and self.player_halite[0] >= 1000: #! multyplayer TODO
-            # TODO check if it work
             self.player_halite[0] -= 1000
             if S[mask_shipyard, 0][0] > 0:
                 S[mask_shipyard, 0] += 1
@@ -118,8 +130,6 @@ class HaliteEnv(gym.Env):
         # check create dropoff
         mask_action_five = action[:, 0, 0] == 5
 
-        # TODO: STATE[:,0,0] add to player's halite
-        #self.player_halite[0] +=
         # check two previous checks together
         mask_five_not_shipy = np.all((mask_not_shipy, mask_action_five), axis=0)
         # remove cell's halite
@@ -171,9 +181,7 @@ class HaliteEnv(gym.Env):
         state[mask_stay_full, 0, 2] = 1000
 
         # movement step
-        mask_coming_ships = np.squeeze((directions[np.newaxis, ...] == action), axis=2)[
-            mask_action
-        ]
+        mask_coming_ships = np.squeeze((directions[np.newaxis, ...] == action), axis=2)[mask_action]
         # ship arrive
         state[mask_action, 0, 1] = 1
         state[mask_action, 0, -1] = state[:,:,-1][mask_action][mask_coming_ships]
@@ -302,9 +310,10 @@ class MapGenerator:
 
         # halite on ships layer (nothing to change)
         mapp[:, :, 2] = 0
-#!!!!!!!!!!!!!!!!!!! 3->1, 1->2, 2->3
+        
         # shipyard, dropoff location (+1 shipyards, -1 dropoffs)
         self.initialize_shipyard_location(map_size, num_players, mapp)
+        
         # remove halite under shipyard starting position
         mapp[:, :, 0][mapp[:, :, 3] == 1] = 0
 
@@ -313,14 +322,6 @@ class MapGenerator:
 
         # ship id
         mapp[:, :, 4] = 0
-
-
-        # ship and buildings ownership (nothing to change)
-        # mapp[:, :, 5]
-        # nothing for now
-
-        # ispiration (nothing to change)
-        # mapp[:, :, 6]
 
         return mapp
 
@@ -367,6 +368,3 @@ def roll_state(state, action):
     rolledSA = np.stack((SA, SAn, SAs, SAw, SAe))
     return rolledSA
 
-
-# def unroll_state(STATE):
-#    return     STATE[:,0,:]
