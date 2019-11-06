@@ -87,16 +87,117 @@ def update_q_v1(s, a, r, sp, ap, q_values, alpha = 0.1, gamma = 1, map_size = 7,
     
     """
     n_cells = map_size**2
-    s_dec = cod.decode3D(s_enc, L1 = n_cells, L2 = h_lev**6, L3 = n_actions-1)
-    sp_dec = cod.decode3D(sp_enc, L1 = n_cells, L2 = h_lev**6, L3 = n_actions-1)
+    s_dec = cod.decode3D(s, L1 = n_cells, L2 = h_lev**6, L3 = n_actions-1)
+    sp_dec = cod.decode3D(sp, L1 = n_cells, L2 = h_lev**6, L3 = n_actions-1)
     shipy_pos = (n_cells-1)/2 #shipyard is at the center of the map
     
     if (sp_dec[0] == shipy_pos and s_dec[0] != shipy_pos):
         # sp is terminal state -> enforce to have Q-value = 0 for all actions ap
-        q_values[s_enc,a] = (1-alpha)*q_values[s_enc,a] + alpha*r 
+        q_values[s,a] = (1-alpha)*q_values[s,a] + alpha*r 
     else:
-        q_values[s_enc,a] = (1-alpha)*q_values[s_enc,a] + alpha*(r + gamma*q_values[sp_enc,ap]) # normal update
+        q_values[s,a] = (1-alpha)*q_values[s,a] + alpha*(r + gamma*q_values[sp,ap]) # normal update
     return q_values
+
+def play_episode(q_values, eps, NUM_PLAYERS, MAP_SIZE, TOT_TURNS, N_ACTIONS, H_LEV,
+                 STD_REWARD,LEARNING_RATE, DISCOUNT_FACTOR, verbose = False):
+    """
+    Trains the agent by playing one episode of halite.
+    
+    Parameters
+    ----------
+    q_values         : numpy array 
+        Contains the Q-values
+    eps              : float 
+        Represents a probability, must be in [0,1], controls the probability of exploring instead of exploting
+    NUM_PLAYERS      : int
+    MAP_SIZE         : int
+    TOT_TURNS        : int
+    N_ACTIONS        : int
+    H_LEV            : int
+    STD_REWARD       : float
+        Baseline reward given to the agent when does not deposit halite to the shipyard
+    LEARNING_RATE    : float
+    DISCOUNT_FACTOR  : float
+        Must be greater than 0 but smaller than 1. Suggested 1-1/TOT_TURNS or 1
+    verbose          : bool
+        Prints halite of the player at each turn of the game
+        
+    Returns
+    -------
+    q_values         : numpy array 
+        Updated Q-values
+    reward           : float
+        Reward obtained in this episode. 
+    collected_halite : float
+        Halite collected by the agent.
+    passages         : int
+        Number of passages of the ship through the shipyard.
+    """
+    
+    import sys
+    sys.path.insert(0, "../Environment/")
+    import halite_env as Env
+    env = Env.HaliteEnv(NUM_PLAYERS, MAP_SIZE, episode_lenght = TOT_TURNS) # init environment
+    steps = 0
+    reward = 0 # cumulative reward of the episode
+    passages = 0 # number of times the ship passes through the shipyard
+    
+    # first mandatory step
+    steps = steps + 1
+    if verbose:
+        print("\nStep number %d:"%steps)
+    action_matrix = np.full((MAP_SIZE,MAP_SIZE), -1) # no ship, no action
+    shipyard_action = True # initially always choose to create a ship
+    # returns the matricial state, the array of players halite and a flag that is true if it's the final turn
+    state, players_halite, finish, _ = env.step(action_matrix, makeship = shipyard_action) 
+    #print("Cargo layer: \n", state[:,:,2])
+    current_halite = players_halite[0][0]
+    s_enc = cod.encode_state(state, map_size = MAP_SIZE, h_lev = H_LEV, n_actions = N_ACTIONS, debug=False)
+
+    while True:
+        steps = steps + 1
+        if verbose:
+            print("\nStep number %d:"%steps)
+            print("Current halite: ", current_halite)
+        a_enc = e_greedy_policy(s_enc, q_values, eps = eps)
+        a_mat = cod.scalar_to_matrix_action(a_enc, state, map_size = MAP_SIZE) #convert the action in matricial form
+
+        # submit the action and get the new state
+        state, players_halite, finish, _ = env.step(a_mat, makeship = False) 
+
+        new_halite = players_halite[0][0]
+
+        # compute the 1-ship reward as the halite increment of the player divided by the max halite 
+        # plus a standard negative reward 
+        r = (new_halite - current_halite)/1000 + STD_REWARD
+
+        sp_enc = cod.encode_state(state, map_size = MAP_SIZE, h_lev = H_LEV, n_actions = N_ACTIONS, debug=False)
+        reward += r # cumulative reward of the episode
+
+        # adds 1 to passages if the current position of the ship coincides with that of the shipyard
+        # whereas the previous position didn't
+        s_dec = cod.decode3D(s_enc, L1 = MAP_SIZE**2, L2 = H_LEV**6, L3 = N_ACTIONS-1)
+        sp_dec = cod.decode3D(sp_enc, L1 = MAP_SIZE**2, L2 = H_LEV**6, L3 = N_ACTIONS-1)
+        shipy_pos = (MAP_SIZE**2-1)/2 #shipyard is at the center of the map
+        if (sp_dec[0] == shipy_pos and s_dec[0] != shipy_pos):
+            passages = passages +1
+                
+        a_temp_enc = greedy_policy(sp_enc, q_values) # simulate the best action in the new state (before update)
+
+        # update Q-values
+        q_values = update_q_v1(s_enc, a_enc, r, sp_enc, a_temp_enc, q_values, alpha = LEARNING_RATE,
+                    gamma = DISCOUNT_FACTOR, map_size = MAP_SIZE, h_lev = H_LEV, n_actions = N_ACTIONS)
+
+        # update states and halite
+        s_enc = sp_enc
+        current_halite = new_halite
+
+        if (finish == True) or (steps >= 400):
+            if verbose:
+                print("\nEnd episode.")
+            break
+    collected_halite = current_halite - 4000
+    return q_values, reward, collected_halite, passages
 
 def update_q_v2(s, a, r, sp, ap, q_values, gamma = 1, n_cells = 49, h_lev = 3, n_actions = 5, alpha = 0.1):
     s_dec = cod.decode4D(s, L1 = n_cells, L2 = h_lev**6, L3 = n_actions-1, L4 = n_actions)
