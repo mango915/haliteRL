@@ -1,3 +1,7 @@
+# Origin of this project
+
+This is the final project for the exam in LABORATORY OF [COMPUTATIONAL PHYSICS (MOD. B)](https://it.didattica.unipd.it/off/2018/LM/SC/SC2443/000ZZ/SCP8082526/N0) course held by professor Marco Baiesi during the master's degree course in [Physics od Data](https://www.unipd.it/en/physics-data). The related presentation can be viewed at this [link](https://docs.google.com/presentation/d/1EJmlQ-L-AC-snDwLroGnENuX4wGkJSlqsndbm1H76gA/edit?usp=sharing). We (me, Stefano Mancone; Nicola Dainese; Francesco Vidaich) really enjoied doing this project, we think that Reinforcement Learning is a wonderful field and we invite anyone that has spare time and it is interested to read the OpenAi SpinningUp RL guide: [link](https://spinningup.openai.com/en/latest/user/introduction.html).
+
 # Reinforcement learning to solve the Halite challenge
 
 Halite is a programming game played by two or four players, which compete for the resources of the map. To win the game one must have more resources than his opponents at the end of the game. The game ends after a certain number of turns, that can vary from match to match, but usually is about 400 or 500 turns.
