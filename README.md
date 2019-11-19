@@ -14,6 +14,9 @@ Introduction and initial committment: Reinforcement_learning_for_halite.pdf
 - partially solved the resource collection task for a single ship and a single player with tabular methods; 
 - implemented the multi-agent framework for tabular methods.
 
+
+<img src="Tutorials/Support_material/play_episode.gif">
+
 # Run project in a conda virtual environment
 
 > conda create -n \<env_name> python=3.7.4
