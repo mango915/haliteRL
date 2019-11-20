@@ -50,7 +50,7 @@ def decode(v_enc, L):
     v_dec = np.array([np.where(v_enc == V)[0][0],np.where(v_enc == V)[1][0]])
     return v_dec
 
-def get_halite_vec_dec(state, q_number = 3, map_size = 7):
+def get_halite_vec_dec_v0(state, q_number = 3, map_size = 7):
     """
     Parameters
     ----------
@@ -88,6 +88,67 @@ def get_halite_vec_dec(state, q_number = 3, map_size = 7):
         h_shape = halite_vec.shape
         h_temp = halite_vec.flatten()
         mask = (h_temp[:,np.newaxis] <= tresholds).astype(int)
+        level = np.argmax(mask, axis = 1)
+        return level.reshape(h_shape)
+
+    pos_enc = one_to_index(state[:,:,1], map_size)
+    pos_dec = decode(pos_enc, map_size) # decode position to access matrix by two indices
+    
+    ship_cargo = state[pos_dec[0],pos_dec[1],2]
+    cargo_quant = halite_quantization(ship_cargo).reshape(1)[0] # quantize halite
+    
+    map_halite = state[:,:,0]
+    halite_quant = halite_quantization(map_halite) # quantize halite
+    
+    halite_vector = []
+    halite_vector.append(cargo_quant)
+    halite_vector.append(halite_quant[pos_dec[0], pos_dec[1]])
+    halite_vector.append(halite_quant[(pos_dec[0]+1)%map_size, pos_dec[1]])
+    halite_vector.append(halite_quant[(pos_dec[0]-1)%map_size, pos_dec[1]])
+    halite_vector.append(halite_quant[pos_dec[0], (pos_dec[1]+1)%map_size])
+    halite_vector.append(halite_quant[pos_dec[0], (pos_dec[1]-1)%map_size])
+
+    return np.array(halite_vector)
+
+def get_halite_vec_dec(state, q_number = 3, map_size = 7):
+    """
+    Parameters
+    ----------
+    state: [map_size,map_size,>=3] numpy array, which layers are:
+            Layer 0: map halite, 
+            Layer 1: ship position, 
+            Layer 2: halite carried by the ships (a.k.a. cargo)
+    q_number : number of quantization levels
+    map_size : linear size of the squared map
+    
+    Returns
+    -------
+    quantized halite vector [𝐶,𝑂,𝑆,𝑁,𝐸,𝑊], numpy array of shape (6,)
+    (where C stands for the halite carried by the ship and O for the cell occupied by the ship)
+    """
+    def halite_quantization(halite_vec, q_number = 3):
+        """
+        Creates q_number thresholds [t0,t1,t2] equispaced in the log space.
+        Maps each entry of halite_vec to the corresponding level:
+        if h <= t0 -> level = 0
+        if t0 < h <= t1 -> level = 1
+        else level = 2
+        
+        Parameters
+        ----------
+        halite_vec : numpy array which elements are numbers between 0 and 1000
+        q_number : number of quantization levels
+
+        Returns
+        -------
+        level : quantized halite_vec according to the q_number thresholds
+        """
+        # h can either be a scalar or a matrix 
+        #tresholds = np.logspace(1,3,q_number) # [10, 100, 1000] = [10^1, 10^2, 10^3]
+        thresholds = np.array([100,500,1000])
+        h_shape = halite_vec.shape
+        h_temp = halite_vec.flatten()
+        mask = (h_temp[:,np.newaxis] <= thresholds).astype(int)
         level = np.argmax(mask, axis = 1)
         return level.reshape(h_shape)
 
