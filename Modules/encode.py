@@ -110,56 +110,56 @@ def get_halite_vec_dec_v0(state, q_number = 3, map_size = 7):
 
     return np.array(halite_vector)
 
-def get_halite_vec_dec(state, q_number = 3, map_size = 7):
+def get_halite_vec_dec(state, map_h_thresholds = np.array([100,500,1000]), 
+                              cargo_thresholds = np.array([200,400,800,1000]), map_size = 7):
     """
     Parameters
     ----------
-    state: [map_size,map_size,>=3] numpy array, which layers are:
+    state: numpy array, shape (map_size,map_size,>=3), which layers are:
             Layer 0: map halite, 
             Layer 1: ship position, 
             Layer 2: halite carried by the ships (a.k.a. cargo)
-    q_number : number of quantization levels
-    map_size : linear size of the squared map
+    map_h_thresholds: quantization thresholds for halite in map's cells
+    cargo_thresholds: quantization thresholds for cargo
+    map_size : int, linear size of the squared map
     
     Returns
     -------
     quantized halite vector [𝐶,𝑂,𝑆,𝑁,𝐸,𝑊], numpy array of shape (6,)
     (where C stands for the halite carried by the ship and O for the cell occupied by the ship)
     """
-    def halite_quantization(halite_vec, q_number = 3):
+    def halite_quantization(halite_vec, thresholds):
         """
-        Creates q_number thresholds [t0,t1,t2] equispaced in the log space.
-        Maps each entry of halite_vec to the corresponding level:
+        Maps each entry of halite_vec to the corresponding quantized level:
         if h <= t0 -> level = 0
         if t0 < h <= t1 -> level = 1
-        else level = 2
+        and so on
         
         Parameters
         ----------
         halite_vec : numpy array which elements are numbers between 0 and 1000
-        q_number : number of quantization levels
+        thresholds : quantization thresholds
 
         Returns
         -------
         level : quantized halite_vec according to the q_number thresholds
         """
         # h can either be a scalar or a matrix 
-        #tresholds = np.logspace(1,3,q_number) # [10, 100, 1000] = [10^1, 10^2, 10^3]
-        thresholds = np.array([100,500,1000])
         h_shape = halite_vec.shape
         h_temp = halite_vec.flatten()
         mask = (h_temp[:,np.newaxis] <= thresholds).astype(int)
         level = np.argmax(mask, axis = 1)
+        
         return level.reshape(h_shape)
 
     pos_enc = one_to_index(state[:,:,1], map_size)
     pos_dec = decode(pos_enc, map_size) # decode position to access matrix by two indices
     
     ship_cargo = state[pos_dec[0],pos_dec[1],2]
-    cargo_quant = halite_quantization(ship_cargo).reshape(1)[0] # quantize halite
+    cargo_quant = halite_quantization(ship_cargo, cargo_thresholds).reshape(1)[0] # quantize halite
     
     map_halite = state[:,:,0]
-    halite_quant = halite_quantization(map_halite) # quantize halite
+    halite_quant = halite_quantization(map_halite, map_h_thresholds) # quantize halite
     
     halite_vector = []
     halite_vector.append(cargo_quant)
@@ -261,6 +261,25 @@ def encode_vector(v_dec, L = 6, m = 3):
     integer corresponding to the element (v_dec[0],v_dec[1],...,v_dec[L-1]) of the encoding tensor.
     """
     T = np.arange(m**L).reshape(tuple([m for i in range(L)]))
+    return T[tuple(v_dec)]
+
+def encode_vector_v1(v_dec, ranges):
+    """
+    Encodes a vector of len(ranges), whose i-th elements ranges from 0 to ranges[i].
+    
+    Parameters
+    ----------
+    v_dec  : list or numpy array of integers
+    ranges : ranges of possible values for each entry of v_dec
+    
+    Returns
+    -------
+    integer corresponding to the element (v_dec[0],v_dec[1],...,v_dec[-1]) of the encoding tensor.
+    """
+    tot_elements = 1
+    for r in ranges:
+        tot_elements = tot_elements * r
+    T = np.arange(tot_elements).reshape(tuple(ranges))
     return T[tuple(v_dec)]
 
 def decode_vector(v_enc, L = 6, m = 3):
@@ -383,25 +402,68 @@ def encode_state(state, map_size = 7, h_lev = 3, n_actions = 5, debug = False):
     -------
     s_enc : int, unique encoding of the partial observation of the game state
     """
+    debug_print = print if debug else lambda *args, **kwargs : None
     pos_enc = one_to_index(state[:,:,1], map_size)[0] # ship position
-    if debug:
-        print("Ship position encoded in [0,%d]: "%(map_size**2-1), pos_enc)
+    debug_print("Ship position encoded in [0,%d]: "%(map_size**2-1), pos_enc)
     
-    halvec_dec = get_halite_vec_dec(state, q_number = 3, map_size = map_size) 
+    # ADJUST FOR COMPATIBILITY
+    map_h_thresholds = np.array([10,100,1000]) #same for map and cargo
+    halvec_dec = get_halite_vec_dec(state, map_h_thresholds, map_h_thresholds, map_size = map_size) 
+    # ADJUST FOR COMPATIBILITY
     halvec_enc = encode_vector(halvec_dec) # halite vector
-    if debug:
-        print("Halite vector encoded in [0,%d]: "%(h_lev**6 -1), halvec_enc)
+    debug_print("Halite vector encoded in [0,%d]: "%(h_lev**6 -1), halvec_enc)
     
     haldir = get_halite_direction(state, map_size = map_size) # halite direction
-    if debug:
-        print("Halite direction in [0,3]: ", haldir)
+    debug_print("Halite direction in [0,3]: ", haldir)
     
     s_dec = np.array([pos_enc, halvec_enc, haldir])
-    if debug:
-        print("Decoded state: ", s_dec)
+    debug_print("Decoded state: ", s_dec)
     s_enc = encode3D(s_dec, L1 = map_size**2, L2 = h_lev**6, L3 = n_actions-1)
-    if debug:
-        print("State encoded in [0, %d]: "%(map_size**2*h_lev**6*(n_actions-1)), s_enc, '\n')
+    debug_print("State encoded in [0, %d]: "%(map_size**2*h_lev**6*(n_actions-1)), s_enc, '\n')
+    
+    return s_enc
+
+def encode_state_v1(state, map_h_thresholds, cargo_thresholds, map_size = 7, n_actions = 5, debug = False):
+    """
+    Encode a state of the game in a unique scalar.
+    
+    Parameters
+    ----------
+     state   : [map_size,map_size,>=3] numpy array
+        Layer 0: map halite
+        Layer 1: ship position 
+        Layer 2: halite carried by the ships (a.k.a. cargo)
+    map_size : int, linear size of the squared map
+    h_lev    : int, number of quantization levels of halite for map cells
+    cargo_lev: int, number of quantization levels of halite for carried halite (a.k.a. cargo)
+    n_actions: int, number of actions that the agent can perform 
+    deubg    : bool, verbose mode to debug
+    
+    Returns
+    -------
+    s_enc : int, unique encoding of the partial observation of the game state
+    """
+    #define some derived quantities
+    h_lev = len(map_h_thresholds)
+    cargo_lev = len(cargo_thresholds)
+    # define debug print function
+    debug_print = print if debug else lambda *args, **kwargs : None
+    
+    pos_enc = one_to_index(state[:,:,1], map_size)[0] # get ship position
+    debug_print("Ship position encoded in [0,%d]: "%(map_size**2-1), pos_enc)
+    
+    halvec_dec = get_halite_vec_dec(state, map_h_thresholds, cargo_thresholds, map_size = map_size) 
+    ranges = [cargo_lev] + [h_lev for i in range(5)]
+    halvec_enc = encode_vector_v1(halvec_dec, ranges) # halite vector
+    debug_print("Halite vector encoded in [0,%d]: "%((h_lev**5)*cargo_lev -1), halvec_enc)
+    
+    haldir = get_halite_direction(state, map_size = map_size) # halite direction
+    debug_print("Halite direction in [0,3]: ", haldir)
+    
+    s_dec = np.array([pos_enc, halvec_enc, haldir])
+    debug_print("Decoded state: ", s_dec)
+    s_enc = encode3D(s_dec, L1 = map_size**2, L2 = (h_lev**5)*cargo_lev, L3 = n_actions-1)
+    debug_print("State encoded in [0, %d]: "%((map_size**2)*(h_lev**5)*cargo_lev*(n_actions-1)), s_enc, '\n')
     
     return s_enc
 
